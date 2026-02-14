@@ -1,8 +1,11 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Literal
 
 class PredictRequest(BaseModel):
-    zip_code: int
+    zip_code: Literal[
+        53703, 53704, 53705, 53706, 53711, 53713,
+        53714, 53715, 53716, 53717, 53718, 53719
+    ]
     beds: int
     baths: float
     sqft: int

@@ -1,0 +1,16 @@
+{
+  "mae": 217.268667019341,
+  "trained_at": "2026-02-08T02:52:11.338767Z",
+  "feature_columns": [
+    "zip_code",
+    "beds",
+    "baths",
+    "sqft",
+    "parking",
+    "in_unit_laundry",
+    "pet_friendly",
+    "utilities_included"
+  ],
+  "target_column": "rent",
+  "model_type": "ridge_regression"
+}
