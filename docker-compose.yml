@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: rent_db
+    environment:
+      POSTGRES_DB: rent_detector
+      POSTGRES_USER: rent_user
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5432:5432"
+    volumes:
+      - rent_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: rent_backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgres://rent_user:password123@db:5432/rent_detector
+
+  frontend:
+    build: ./frontend
+    container_name: rent_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  rent_data:
