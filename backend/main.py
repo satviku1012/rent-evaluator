@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from backend.schemas import PredictRequest, PredictResponse
 from backend.model import RentModel
+from fastapi.middleware.cors import CORSMiddleware
 
 import pandas as pd
 
@@ -9,6 +10,15 @@ from backend.db import get_connection
 from backend.db import save_prediction_to_db
 
 app = FastAPI()
+
+# Allow frontend to access backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # your frontend origin
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 init_db()
 
@@ -30,7 +40,7 @@ def predict(payload: PredictRequest):
     range_low = int(fair_rent - mae)
     range_high = int(fair_rent + mae)
     delta = payload.asking_rent - fair_rent
-    verdict = "underpriced" if delta > 50 else "overpriced" if delta < -50 else "fair"
+    verdict = "overpriced" if delta > 100 else "underpriced" if delta < -100 else "fair"
 
     top_factors = [
         "Zip code affects baseline rent",
