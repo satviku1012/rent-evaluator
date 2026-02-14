@@ -2,7 +2,15 @@ from fastapi import FastAPI
 from backend.schemas import PredictRequest, PredictResponse
 from backend.model import RentModel
 
+import pandas as pd
+
+from backend.db import init_db
+from backend.db import get_connection
+from backend.db import save_prediction_to_db
+
 app = FastAPI()
+
+init_db()
 
 rent_model = RentModel()
 
@@ -15,42 +23,59 @@ def health():
     return {"status": "ok"}
 
 @app.post("/predict", response_model=PredictResponse)
-def predict(data: PredictRequest):
-    features = {
-        "zip_code": int(data.zip_code),
-        "beds": data.beds,
-        "baths": data.baths,
-        "sqft": data.sqft,
-        "parking": int(data.parking),
-        "in_unit_laundry": int(data.in_unit_laundry),
-        "pet_friendly": int(data.pet_friendly),
-        "utilities_included": int(data.utilities_included),
+def predict(payload: PredictRequest):
+    features = payload.dict()
+    fair_rent = rent_model.predict_rent(features)
+    mae = rent_model.mae
+    range_low = int(fair_rent - mae)
+    range_high = int(fair_rent + mae)
+    delta = payload.asking_rent - fair_rent
+    verdict = "underpriced" if delta > 50 else "overpriced" if delta < -50 else "fair"
+
+    top_factors = [
+        "Zip code affects baseline rent",
+        "Square footage shifts expected price",
+        "Bedrooms, bathrooms, and amenities adjust the estimate",
+    ]
+
+    prediction = {
+        **features,
+        "fair_rent": int(fair_rent),
+        "range_low": range_low,
+        "range_high": range_high,
+        "delta": int(delta),
+        "verdict": verdict,
+        "top_factors": top_factors,
     }
 
-    fair_rent = rent_model.predict_rent(features)
-    mae = int(round(rent_model.mae))
+    # Save to Postgres
+    save_prediction_to_db(prediction)
 
-    range_low = max(0, fair_rent - mae)
-    range_high = fair_rent + mae
+    return PredictResponse(**prediction)
 
-    delta = data.asking_rent - fair_rent
+@app.get("/analytics")
+def analytics():
+    query = """
+    SELECT zip_code, 
+           AVG(fair_rent) AS avg_fair_rent, 
+           COUNT(*) AS num_predictions,
+           AVG(delta) AS avg_delta
+    FROM predictions
+    GROUP BY zip_code
+    ORDER BY zip_code
+    """
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(query)
+        results = cur.fetchall()
+    conn.close()
 
-    if delta < -100:
-        verdict = "underpriced"
-    elif delta > 100:
-        verdict = "overpriced"
-    else:
-        verdict = "fair"
+    # Return JSON
+    return {
+        "by_zip_code": [
+            {"zip_code": r["zip_code"], "avg_fair_rent": float(r["avg_fair_rent"]), 
+             "num_predictions": r["num_predictions"], "avg_delta": float(r["avg_delta"])}
+            for r in results
+        ]
+    }
 
-    return PredictResponse(
-        fair_rent=fair_rent,
-        range_low=range_low,
-        range_high=range_high,
-        delta=delta,
-        verdict=verdict,
-        top_factors=[
-            "Zip code affects baseline rent",
-            "Square footage shifts expected price",
-            "Bedrooms, bathrooms, and amenities adjust the estimate",
-        ],
-    )
